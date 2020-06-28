@@ -90,11 +90,13 @@ func (d *DNSServer) appendRR(rr dns.RR) {
 func parseSubdomainToIP(hostName string) (net.IP, bool) {
 	pieces := strings.Split(hostName, ".") // [1-1-1-1].[example].[com].[]
 	if len(pieces) < 4 {
+		log.Print("93")
 		return net.IP{}, false
 	}
 
 	ipPieces := strings.Split(pieces[0], "-")
 	if len(ipPieces) != 4 {
+		log.Print("99")
 		return net.IP{}, false
 	}
 
@@ -104,8 +106,10 @@ func parseSubdomainToIP(hostName string) (net.IP, bool) {
 	d, e4 := strconv.Atoi(ipPieces[3])
 
 	if e1 == nil && e2 == nil && e3 == nil && e4 == nil {
+		log.Print("109")
 		return net.IPv4(byte(a), byte(b), byte(c), byte(d)), true
 	} else {
+		log.Print("111")
 		return net.IP{}, false
 	}
 }
@@ -114,7 +118,12 @@ func (d *DNSServer) handleRequest(w dns.ResponseWriter, r *dns.Msg) {
 	m := new(dns.Msg)
 	m.SetReply(r)
 
+	if len(r.Question) > 0 {
+		log.Print(r.Question[0].Name)
+	}
+
 	if len(r.Question) == 1 {
+		log.Print(r.Question[0].Name)
 		ip, accepted := parseSubdomainToIP(r.Question[0].Name)
 		if accepted {
 			m.Answer = make([]dns.RR, len(r.Question))
@@ -125,6 +134,8 @@ func (d *DNSServer) handleRequest(w dns.ResponseWriter, r *dns.Msg) {
 
 			w.WriteMsg(m)
 			return
+		} else {
+			log.Print("Not Accepted")
 		}
 	}
 
