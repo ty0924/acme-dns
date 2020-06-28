@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/miekg/dns"
 	log "github.com/sirupsen/logrus"
+	"net"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -85,9 +87,46 @@ func (d *DNSServer) appendRR(rr dns.RR) {
 	log.WithFields(log.Fields{"recordtype": dns.TypeToString[rr.Header().Rrtype], "domain": addDomain}).Debug("Adding new record to domain")
 }
 
+func parseSubdomainToIP(hostName string) (net.IP, bool) {
+	pieces := strings.Split(hostName, ".") // [1-1-1-1].[example].[com].[]
+	if len(pieces) < 4 {
+		return net.IP{}, false
+	}
+
+	ipPieces := strings.Split(pieces[0], "-")
+	if len(ipPieces) != 4 {
+		return net.IP{}, false
+	}
+
+	a, e1 := strconv.Atoi(ipPieces[0])
+	b, e2 := strconv.Atoi(ipPieces[1])
+	c, e3 := strconv.Atoi(ipPieces[2])
+	d, e4 := strconv.Atoi(ipPieces[3])
+
+	if e1 == nil && e2 == nil && e3 == nil && e4 == nil {
+		return net.IPv4(byte(a), byte(b), byte(c), byte(d)), true
+	} else {
+		return net.IP{}, false
+	}
+}
+
 func (d *DNSServer) handleRequest(w dns.ResponseWriter, r *dns.Msg) {
 	m := new(dns.Msg)
 	m.SetReply(r)
+
+	if len(r.Question) == 1 {
+		ip, accepted := parseSubdomainToIP(r.Question[0].Name)
+		if accepted {
+			m.Answer = make([]dns.RR, len(r.Question))
+			rr := new(dns.A)
+			rr.Hdr = dns.RR_Header{Name: r.Question[0].Name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 0}
+			rr.A = ip
+			m.Answer[0] = rr
+
+			w.WriteMsg(m)
+			return
+		}
+	}
 
 	// handle edns0
 	opt := r.IsEdns0()
